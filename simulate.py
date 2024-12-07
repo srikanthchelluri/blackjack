@@ -143,7 +143,12 @@ class BlackjackGame:
         self.players = [Player(name=f"Player {i+1}") for i in range(num_players)]
         self.dealer = Dealer()
         self.shoe = Shoe(num_decks=num_decks, reshuffle_threshold=reshuffle_threshold)
-        self.statistics = {"rounds": 0, "wins": 0, "losses": 0, "pushes": 0}
+        self.statistics = {
+            "rounds": 0,
+            "players": {
+                f"Player {i+1}": {"wins": 0, "losses": 0, "pushes": 0} for i in range(self.num_players)
+            }
+        }
 
     def deal_initial_hands(self):
         cards_needed = 2 * (self.num_players + 1)  # Two cards for each player and the dealer
@@ -182,20 +187,24 @@ class BlackjackGame:
 
     def resolve_hands(self):
         dealer_value = self.dealer.calculate_hand_value()
+        print(f"Dealer's Hand: {self.dealer} (Value: {dealer_value})")
+
         for player in self.players:
             player_value = player.calculate_hand_value()
+            print(f"{player.name}'s Hand: {player} (Value: {player_value})")
+
             if player.is_busted():
                 print(f"{player.name} busted! Dealer wins.")
-                self.statistics["losses"] += 1
+                self.statistics["players"][player.name]["losses"] += 1
             elif dealer_value > 21 or player_value > dealer_value:
                 print(f"{player.name} wins!")
-                self.statistics["wins"] += 1
+                self.statistics["players"][player.name]["wins"] += 1
             elif player_value == dealer_value:
                 print(f"{player.name} pushes.")
-                self.statistics["pushes"] += 1
+                self.statistics["players"][player.name]["pushes"] += 1
             else:
                 print(f"{player.name} loses.")
-                self.statistics["losses"] += 1
+                self.statistics["players"][player.name]["losses"] += 1
 
     def reset_hands(self):
         for player in self.players:
@@ -248,14 +257,13 @@ class BlackjackGame:
 
         print("\nSimulation Results:")
         print(f"Total Rounds: {self.statistics['rounds']}")
-        print(f"Wins: {self.statistics['wins']}")
-        print(f"Losses: {self.statistics['losses']}")
-        print(f"Pushes: {self.statistics['pushes']}")
+        for player, stats in self.statistics["players"].items():
+            total = stats["wins"] + stats["losses"] + stats["pushes"]
+            print(f"{player} - Wins: {stats['wins']} ({(stats['wins'] / total) * 100:.2f}%), "
+                f"Losses: {stats['losses']} ({(stats['losses'] / total) * 100:.2f}%), "
+                f"Pushes: {stats['pushes']} ({(stats['pushes'] / total) * 100:.2f}%)")
 
 
 if __name__ == "__main__":
-    game = BlackjackGame(num_players=1, num_decks=6)
-
-    print("Simulating 100 rounds...")
-    game.simulate(100)
-    print("Simulation completed.")
+    game = BlackjackGame(num_players=4, num_decks=6)
+    game.simulate(1000)

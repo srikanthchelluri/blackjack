@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 import random
 
-
 BASIC_STRATEGY = {
     "hard": {
-        # Hard totals: (player_total, dealer_up_card) -> action
         (17, 2): "stand", (17, 3): "stand", (17, 4): "stand", (17, 5): "stand", (17, 6): "stand",
         (17, 7): "stand", (17, 8): "stand", (17, 9): "stand", (17, 10): "stand", (17, 11): "stand",
         (16, 2): "stand", (16, 3): "stand", (16, 4): "stand", (16, 5): "stand", (16, 6): "stand",
@@ -19,22 +17,12 @@ BASIC_STRATEGY = {
         (12, 7): "hit", (12, 8): "hit", (12, 9): "hit", (12, 10): "hit", (12, 11): "hit",
     },
     "soft": {
-        # Soft totals: (soft_total, dealer_up_card) -> action
         (19, 2): "stand", (19, 3): "stand", (19, 4): "stand", (19, 5): "stand", (19, 6): "stand",
         (19, 7): "stand", (19, 8): "stand", (19, 9): "stand", (19, 10): "stand", (19, 11): "stand",
         (18, 2): "stand", (18, 3): "stand", (18, 4): "stand", (18, 5): "double", (18, 6): "double",
         (18, 7): "stand", (18, 8): "stand", (18, 9): "hit", (18, 10): "hit", (18, 11): "hit",
         (17, 2): "hit", (17, 3): "hit", (17, 4): "hit", (17, 5): "hit", (17, 6): "hit",
         (17, 7): "hit", (17, 8): "hit", (17, 9): "hit", (17, 10): "hit", (17, 11): "hit",
-    },
-    "pairs": {
-        # Pairs: (pair_rank, dealer_up_card) -> action
-        (11, 2): "split", (11, 3): "split", (11, 4): "split", (11, 5): "split", (11, 6): "split",
-        (11, 7): "split", (11, 8): "split", (11, 9): "split", (11, 10): "split", (11, 11): "split",
-        (10, 2): "stand", (10, 3): "stand", (10, 4): "stand", (10, 5): "stand", (10, 6): "stand",
-        (10, 7): "stand", (10, 8): "stand", (10, 9): "stand", (10, 10): "stand", (10, 11): "stand",
-        (9, 2): "split", (9, 3): "split", (9, 4): "split", (9, 5): "split", (9, 6): "split",
-        (9, 7): "stand", (9, 8): "split", (9, 9): "split", (9, 10): "stand", (9, 11): "stand",
     }
 }
 
@@ -50,7 +38,7 @@ class Card:
         if self.rank in ['J', 'Q', 'K']:
             return 10
         elif self.rank == 'A':
-            return 11  # Ace can also be 1, to be handled in gameplay logic.
+            return 11
         else:
             return int(self.rank)
 
@@ -67,7 +55,7 @@ class Card:
 class Deck:
     def __init__(self):
         self.cards = self.create_deck()
-    
+
     def create_deck(self):
         ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
         suits = ['hearts', 'diamonds', 'clubs', 'spades']
@@ -78,9 +66,6 @@ class Deck:
 
     def draw_card(self):
         return self.cards.pop() if self.cards else None
-
-    def __repr__(self):
-        return f"Deck of {len(self.cards)} cards"
 
 
 class Shoe:
@@ -97,12 +82,14 @@ class Shoe:
         random.shuffle(self.cards)
 
     def draw_card(self):
-        if len(self.cards) <= self.reshuffle_threshold * self.num_decks * 52:
+        if len(self.cards) == 0:
+            print("The shoe is empty. Reshuffling...")
+            self.cards = self.create_shoe()
             self.shuffle()
-        return self.cards.pop() if self.cards else None
-
-    def __repr__(self):
-        return f"Shoe with {len(self.cards)} cards from {self.num_decks} decks"
+        elif len(self.cards) <= self.reshuffle_threshold * self.num_decks * 52:
+            print("Reshuffling the shoe as it is running low.")
+            self.shuffle()
+        return self.cards.pop()
 
 
 class Player:
@@ -126,7 +113,6 @@ class Player:
 
     def calculate_hand_value(self):
         value = sum(card.value for card in self.hand)
-        # Adjust for Aces
         num_aces = sum(1 for card in self.hand if card.rank == 'A')
         while value > 21 and num_aces:
             value -= 10
@@ -146,14 +132,9 @@ class Dealer(Player):
         super().__init__(name="Dealer")
 
     def should_hit(self):
-        # Dealer hits on soft 17
         hand_value = self.calculate_hand_value()
         has_soft_17 = any(card.rank == 'A' for card in self.hand) and hand_value == 17
         return hand_value < 17 or has_soft_17
-
-    def __repr__(self):
-        hand_str = ', '.join(str(card) for card in self.hand)
-        return f"Dealer: {hand_str} (Value: {self.calculate_hand_value()})"
 
 
 class BlackjackGame:
@@ -162,8 +143,15 @@ class BlackjackGame:
         self.players = [Player(name=f"Player {i+1}") for i in range(num_players)]
         self.dealer = Dealer()
         self.shoe = Shoe(num_decks=num_decks, reshuffle_threshold=reshuffle_threshold)
+        self.statistics = {"rounds": 0, "wins": 0, "losses": 0, "pushes": 0}
 
     def deal_initial_hands(self):
+        cards_needed = 2 * (self.num_players + 1)  # Two cards for each player and the dealer
+        if len(self.shoe.cards) < cards_needed:
+            print("Not enough cards for a new round. Reshuffling...")
+            self.shoe.cards = self.shoe.create_shoe()
+            self.shoe.shuffle()
+
         for _ in range(2):
             for player in self.players:
                 player.receive_card(self.shoe.draw_card())
@@ -173,13 +161,16 @@ class BlackjackGame:
         print(f"\n{player.name}'s turn:")
         while not player.is_busted():
             print(player)
-            action = input("Choose action (hit/stand): ").strip().lower()
+            dealer_up_card = self.dealer.hand[0]
+            action = self.get_strategy_action(player, dealer_up_card)
+            print(f"{player.name} chooses to {action}.")
             if action == "hit":
                 player.receive_card(self.shoe.draw_card())
             elif action == "stand":
                 break
-            else:
-                print("Invalid action. Please choose 'hit' or 'stand'.")
+            elif action == "double":
+                player.receive_card(self.shoe.draw_card())
+                break
         print(f"{player.name} ends their turn.\n")
 
     def dealer_turn(self):
@@ -195,14 +186,16 @@ class BlackjackGame:
             player_value = player.calculate_hand_value()
             if player.is_busted():
                 print(f"{player.name} busted! Dealer wins.")
+                self.statistics["losses"] += 1
             elif dealer_value > 21 or player_value > dealer_value:
                 print(f"{player.name} wins!")
-                player.bankroll += 2 * player.bet
+                self.statistics["wins"] += 1
             elif player_value == dealer_value:
                 print(f"{player.name} pushes.")
-                player.bankroll += player.bet
+                self.statistics["pushes"] += 1
             else:
                 print(f"{player.name} loses.")
+                self.statistics["losses"] += 1
 
     def reset_hands(self):
         for player in self.players:
@@ -223,11 +216,6 @@ class BlackjackGame:
         has_ace = any(card.rank == 'A' for card in player.hand)
         is_soft = has_ace and hand_value <= 21
         dealer_value = dealer_up_card.value
-
-        # Check if the hand is a pair
-        if len(player.hand) == 2 and player.hand[0].rank == player.hand[1].rank:
-            pair_rank = player.hand[0].value
-            return BASIC_STRATEGY["pairs"].get((pair_rank, dealer_value), "hit")
 
         # Soft totals
         if is_soft:
@@ -253,11 +241,21 @@ class BlackjackGame:
                 break  # Double ends the turn
         print(f"{player.name} ends their turn.\n")
 
+    def simulate(self, num_rounds):
+        for _ in range(num_rounds):
+            self.statistics["rounds"] += 1
+            self.play_round()
+
+        print("\nSimulation Results:")
+        print(f"Total Rounds: {self.statistics['rounds']}")
+        print(f"Wins: {self.statistics['wins']}")
+        print(f"Losses: {self.statistics['losses']}")
+        print(f"Pushes: {self.statistics['pushes']}")
+
 
 if __name__ == "__main__":
     game = BlackjackGame(num_players=1, num_decks=6)
 
-    # Simulate a single round
-    print("Starting a new round...")
-    game.play_round()
-    print("Round completed.")
+    print("Simulating 100 rounds...")
+    game.simulate(100)
+    print("Simulation completed.")
